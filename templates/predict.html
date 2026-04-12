@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}Predict - SimCLR Web App{% endblock %}
+
+{% block content %}
+<div class="container-lg py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="section-title text-center mb-5">
+                <h1 class="mb-2">Image Classification</h1>
+                <p class="text-muted">Upload an image and get predictions from trained models</p>
+            </div>
+
+            <div class="card shadow-lg border-0 mb-4">
+                <div class="card-body p-5">
+                    <!-- Upload Form -->
+                    <div class="upload-area mb-4" id="uploadArea">
+                        <div class="upload-icon mb-3">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                        </div>
+                        <h5 class="mb-2">Drop image here or click to upload</h5>
+                        <p class="text-muted small mb-3">Supported formats: JPG, PNG, BMP, GIF (Max 50MB)</p>
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <button class="btn btn-primary" onclick="document.getElementById('imageInput').click()">
+                            <i class="bi bi-folder-open"></i> Choose Image
+                        </button>
+                    </div>
+
+                    <!-- Model Selection -->
+                    <div class="mb-4">
+                        <label for="modelSelect" class="form-label fw-bold">
+                            <i class="bi bi-cpu"></i> Select Model
+                        </label>
+                        <select class="form-select" id="modelSelect">
+                            <option value="Supervised Baseline">Supervised Baseline (Standard CNN)</option>
+                            <option value="Linear Evaluation">Linear Evaluation (SimCLR Features)</option>
+                        </select>
+                        <small class="text-muted d-block mt-2">
+                            <strong>Tip:</strong> Compare predictions across different models to see how self-supervised learning compares to supervised learning.
+                        </small>
+                    </div>
+
+                    <!-- Predict Button -->
+                    <button class="btn btn-success btn-lg w-100 mb-3" id="predictBtn" disabled>
+                        <i class="bi bi-lightning"></i> Get Prediction
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="text-center mb-4" style="display: none;">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Analyzing image...</p>
+            </div>
+
+            <!-- Error Alert -->
+            <div id="errorAlert" class="alert alert-danger alert-dismissible fade show mb-4" role="alert" style="display: none;">
+                <i class="bi bi-exclamation-circle"></i>
+                <span id="errorMessage"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Results -->
+            <div id="resultsContainer" style="display: none;">
+                <!-- Image Preview and Info -->
+                <div class="card shadow-lg border-0 mb-4">
+                    <div class="card-body p-4">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <img id="previewImage" src="" alt="Preview" class="img-fluid rounded">
+                                <p class="text-muted small mt-2" id="imageInfo"></p>
+                            </div>
+                            <div class="col-md-8">
+                                <h5 class="mb-3">
+                                    <i class="bi bi-bullseye text-success"></i> Prediction Result
+                                </h5>
+                                <div class="prediction-result mb-4">
+                                    <h3 id="predictedClass" class="mb-2"></h3>
+                                    <div class="confidence-bar">
+                                        <div id="confidenceBar" class="confidence-fill"></div>
+                                    </div>
+                                    <p class="mb-0">
+                                        Confidence: <strong id="confidenceValue"></strong>
+                                    </p>
+                                </div>
+                                <p class="text-muted small">
+                                    <strong>Model:</strong> <span id="usedModel"></span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Class Probabilities -->
+                <div class="card shadow-lg border-0 mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-4">
+                            <i class="bi bi-bar-chart"></i> All Class Predictions
+                        </h5>
+                        <div id="probabilitiesChart" style="position: relative; height: 300px;">
+                            <canvas id="probChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CIFAR-10 Classes Legend -->
+                <div class="card shadow-lg border-0">
+                    <div class="card-body p-4">
+                        <h6 class="mb-3">CIFAR-10 Classes</h6>
+                        <div class="row">
+                            {% for class_name in classes %}
+                                <div class="col-md-6 col-lg-4 mb-2">
+                                    <span class="badge bg-light text-dark">
+                                        {{ class_name }}
+                                    </span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const classes = {{ classes | tojson }};
+    let selectedFile = null;
+    let probChart = null;
+
+    // Setup drag and drop
+    const uploadArea = document.getElementById('uploadArea');
+    const imageInput = document.getElementById('imageInput');
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            imageInput.files = files;
+            handleFileSelect();
+        }
+    });
+
+    imageInput.addEventListener('change', handleFileSelect);
+
+    function handleFileSelect() {
+        if (imageInput.files.length > 0) {
+            selectedFile = imageInput.files[0];
+            uploadArea.innerHTML = `
+                <div class="alert alert-success mb-0">
+                    <i class="bi bi-check-circle"></i> 
+                    File selected: <strong>${selectedFile.name}</strong>
+                </div>
+            `;
+            document.getElementById('predictBtn').disabled = false;
+        }
+    }
+
+    // Predict button
+    document.getElementById('predictBtn').addEventListener('click', async () => {
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('model', document.getElementById('modelSelect').value);
+
+        // Show loading
+        document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('errorAlert').style.display = 'none';
+        document.getElementById('resultsContainer').style.display = 'none';
+
+        try {
+            const response = await fetch('/predict', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Prediction failed');
+            }
+
+            const data = await response.json();
+            displayResults(data);
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+    });
+
+    function displayResults(data) {
+        // Update image preview
+        document.getElementById('previewImage').src = data.image_path;
+        document.getElementById('imageInfo').textContent = `Class: ${data.predicted_class}`;
+
+        // Update prediction result
+        document.getElementById('predictedClass').textContent = data.predicted_class;
+        document.getElementById('confidenceValue').textContent = 
+            `${(data.confidence * 100).toFixed(2)}%`;
+        
+        const confidenceBar = document.getElementById('confidenceBar');
+        confidenceBar.style.width = `${data.confidence * 100}%`;
+        
+        if (data.confidence > 0.7) {
+            confidenceBar.className = 'confidence-fill bg-success';
+        } else if (data.confidence > 0.5) {
+            confidenceBar.className = 'confidence-fill bg-warning';
+        } else {
+            confidenceBar.className = 'confidence-fill bg-danger';
+        }
+
+        document.getElementById('usedModel').textContent = data.model;
+
+        // Update chart
+        updateChart(data.all_probabilities);
+
+        // Show results
+        document.getElementById('resultsContainer').style.display = 'block';
+
+        // Scroll to results
+        setTimeout(() => {
+            document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    }
+
+    function updateChart(probabilities) {
+        const ctx = document.getElementById('probChart').getContext('2d');
+        const classNames = Object.keys(probabilities);
+        const probs = Object.values(probabilities);
+
+        if (probChart) {
+            probChart.destroy();
+        }
+
+        probChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: classNames,
+                datasets: [{
+                    label: 'Probability',
+                    data: probs,
+                    backgroundColor: [
+                        '#0d6efd', '#0dcaf0', '#31b0d5', '#198754', '#ffc107',
+                        '#fd7e14', '#dc3545', '#6f42c1', '#20c997', '#6610f2'
+                    ],
+                    borderRadius: 5,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 1
+                    }
+                }
+            }
+        });
+    }
+
+    function showError(message) {
+        document.getElementById('errorMessage').textContent = message;
+        document.getElementById('errorAlert').style.display = 'block';
+    }
+</script>
+
+<style>
+    .upload-area {
+        border: 3px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+
+    .upload-area.dragover {
+        border-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .upload-icon {
+        font-size: 48px;
+        color: #0d6efd;
+    }
+
+    .prediction-result {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 20px;
+        border-radius: 8px;
+    }
+
+    .confidence-bar {
+        background-color: #e9ecef;
+        border-radius: 4px;
+        height: 24px;
+        margin: 10px 0;
+        overflow: hidden;
+    }
+
+    .confidence-fill {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 8px;
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}

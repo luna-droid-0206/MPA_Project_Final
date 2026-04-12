@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}Documentation - SimCLR Web App{% endblock %}
+
+{% block content %}
+<div class="container-lg py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="section-title text-center mb-5">
+                <h1 class="mb-2">Documentation</h1>
+                <p class="text-muted">Complete guide to SimCLR Self-Supervised Learning</p>
+            </div>
+
+            <!-- Quick Navigation -->
+            <nav class="card shadow-lg border-0 mb-5 sticky-top" style="top: 20px; z-index: 100;">
+                <div class="card-body p-3">
+                    <h6 class="mb-2">Quick Navigation</h6>
+                    <div class="btn-group-vertical w-100" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm text-start" onclick="scrollToSection('overview')">
+                            <i class="bi bi-journal-text"></i> Overview
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm text-start" onclick="scrollToSection('architecture')">
+                            <i class="bi bi-diagram-3"></i> Architecture
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm text-start" onclick="scrollToSection('usage')">
+                            <i class="bi bi-play-btn"></i> Usage
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm text-start" onclick="scrollToSection('models')">
+                            <i class="bi bi-cpu"></i> Models
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm text-start" onclick="scrollToSection('features')">
+                            <i class="bi bi-star"></i> Features
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Content Sections -->
+            <div class="docs-content">
+                <!-- Overview Section -->
+                <section id="overview" class="card shadow-lg border-0 mb-5">
+                    <div class="card-body p-5">
+                        <h3 class="mb-4">
+                            <i class="bi bi-journal-text"></i> Overview
+                        </h3>
+                        <p>
+                            <strong>SimCLR (Simple Contrastive Learning of Visual Representations)</strong> is a self-supervised learning method
+                            that learns meaningful visual representations without requiring labeled data. This web application demonstrates
+                            how SimCLR can match or exceed supervised learning performance on CIFAR-10.
+                        </p>
+                        <h6 class="mt-4 mb-2">Key Features</h6>
+                        <ul>
+                            <li><strong>Self-Supervised Learning:</strong> Learns representations without labels</li>
+                            <li><strong>Contrastive Loss:</strong> Uses NT-Xent (Normalized Temperature-scaled Cross Entropy) loss</li>
+                            <li><strong>Data Augmentation:</strong> Leverages strong augmentations to create different views</li>
+                            <li><strong>Transfer Learning:</strong> Learned features transfer well to downstream tasks</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Architecture Section -->
+                <section id="architecture" class="card shadow-lg border-0 mb-5">
+                    <div class="card-body p-5">
+                        <h3 class="mb-4">
+                            <i class="bi bi-diagram-3"></i> Architecture
+                        </h3>
+                        <h6 class="mb-3">SimCLR Framework</h6>
+                        <p>SimCLR consists of four main components:</p>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="architecture-box">
+                                    <h6 class="text-primary mb-2">1. Data Augmentation</h6>
+                                    <p class="small text-muted mb-0">Creates two random augmented views of each image</p>
+                                    <code class="small d-block mt-2">RandomCrop, ColorJitter, RandomGrayscale, GaussianBlur</code>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="architecture-box">
+                                    <h6 class="text-info mb-2">2. Encoder Network</h6>
+                                    <p class="small text-muted mb-0">ResNet-18 base model extracts features</p>
+                                    <code class="small d-block mt-2">Output: 512-dimensional feature vectors</code>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="architecture-box">
+                                    <h6 class="text-success mb-2">3. Projection Head</h6>
+                                    <p class="small text-muted mb-0">Non-linear MLP projects features to lower dimension</p>
+                                    <code class="small d-block mt-2">512 → 512 → 128 dimensions</code>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="architecture-box">
+                                    <h6 class="text-warning mb-2">4. Contrastive Loss</h6>
+                                    <p class="small text-muted mb-0">NT-Xent loss maximizes similarity of augmented pairs</p>
+                                    <code class="small d-block mt-2">Batch size: 256, Temperature: 0.5</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Usage Section -->
+                <section id="usage" class="card shadow-lg border-0 mb-5">
+                    <div class="card-body p-5">
+                        <h3 class="mb-4">
+                            <i class="bi bi-play-btn"></i> Usage Guide
+                        </h3>
+                        
+                        <h6 class="mb-3">Training Models</h6>
+                        <div class="code-block mb-4">
+                            <pre><code># Supervised baseline training
+python train_supervised.py
+
+# Self-supervised pretraining with SimCLR
+python train_simclr.py
+
+# Linear evaluation on frozen encoder
+python train_linear.py
+
+# Evaluate all models
+python evaluate.py
+
+# Run full pipeline
+python main.py --all</code></pre>
+                        </div>
+
+                        <h6 class="mb-3">Web Interface</h6>
+                        <div class="code-block mb-4">
+                            <pre><code># Start the web app
+python app.py
+
+# Open browser to
+http://localhost:5000</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Models Section -->
+                <section id="models" class="card shadow-lg border-0 mb-5">
+                    <div class="card-body p-5">
+                        <h3 class="mb-4">
+                            <i class="bi bi-cpu"></i> Available Models
+                        </h3>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="model-info-box">
+                                    <h6 class="text-success mb-2">Supervised Baseline</h6>
+                                    <p class="small text-muted mb-2">
+                                        Standard supervised ResNet-18 trained on fully labeled CIFAR-10 data.
+                                        Represents the upper performance bound using labels.
+                                    </p>
+                                    <p class="small">
+                                        <strong>Type:</strong> Full neural network<br>
+                                        <strong>Training:</strong> 50 epochs, Cross-entropy loss<br>
+                                        <strong>Expected Accuracy:</strong> ~95-97%
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="model-info-box">
+                                    <h6 class="text-info mb-2">Linear Evaluation</h6>
+                                    <p class="small text-muted mb-2">
+                                        Linear classifier trained on frozen SimCLR encoder features.
+                                        Tests quality of self-supervised representations.
+                                    </p>
+                                    <p class="small">
+                                        <strong>Type:</strong> Frozen encoder + linear layer<br>
+                                        <strong>Training:</strong> 50 epochs, Cross-entropy loss<br>
+                                        <strong>Expected Accuracy:</strong> ~90-93%
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Features Section -->
+                <section id="features" class="card shadow-lg border-0 mb-5">
+                    <div class="card-body p-5">
+                        <h3 class="mb-4">
+                            <i class="bi bi-star"></i> Web App Features
+                        </h3>
+                        
+                        <div class="feature-list">
+                            <div class="feature-item mb-4">
+                                <h6 class="text-primary mb-2">
+                                    <i class="bi bi-image"></i> Image Classification
+                                </h6>
+                                <p class="small text-muted">
+                                    Upload images and get predictions from both supervised and self-supervised models.
+                                    Compare how different learning approaches classify the same image.
+                                </p>
+                            </div>
+
+                            <div class="feature-item mb-4">
+                                <h6 class="text-info mb-2">
+                                    <i class="bi bi-diagram-3"></i> Feature Extraction
+                                </h6>
+                                <p class="small text-muted">
+                                    Extract 512-dimensional feature vectors from the SimCLR encoder and visualize
+                                    their statistical properties and distributions.
+                                </p>
+                            </div>
+
+                            <div class="feature-item mb-4">
+                                <h6 class="text-success mb-2">
+                                    <i class="bi bi-bar-chart"></i> Model Evaluation
+                                </h6>
+                                <p class="small text-muted">
+                                    View comprehensive evaluation metrics comparing supervised and self-supervised
+                                    approaches, including per-class performance breakdowns.
+                                </p>
+                            </div>
+
+                            <div class="feature-item">
+                                <h6 class="text-warning mb-2">
+                                    <i class="bi bi-gpu-card"></i> Automatic Hardware Acceleration
+                                </h6>
+                                <p class="small text-muted">
+                                    Automatically detects and uses GPU if available, falls back to CPU for compatibility.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Project README -->
+                {% if readme %}
+                    <section class="card shadow-lg border-0 mb-5">
+                        <div class="card-body p-5">
+                            <h3 class="mb-4">
+                                <i class="bi bi-file-text"></i> Full Documentation
+                            </h3>
+                            <div class="markdown-content">
+                                {{ readme | safe }}
+                            </div>
+                        </div>
+                    </section>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function scrollToSection(sectionId) {
+        const element = document.getElementById(sectionId);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+</script>
+
+<style>
+    .architecture-box {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #0d6efd;
+    }
+
+    .model-info-box {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .code-block {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 6px;
+        overflow-x: auto;
+        border: 1px solid #444;
+    }
+
+    .code-block code {
+        font-size: 13px;
+        font-family: 'Courier New', monospace;
+    }
+
+    .feature-item {
+        padding-bottom: 15px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .feature-item:last-child {
+        border-bottom: none;
+    }
+
+    .markdown-content {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .markdown-content h2 {
+        font-size: 24px;
+        margin-top: 30px;
+        margin-bottom: 15px;
+    }
+
+    .markdown-content h3 {
+        font-size: 20px;
+        margin-top: 20px;
+        margin-bottom: 10px;
+    }
+
+    .markdown-content code {
+        background-color: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: 'Courier New', monospace;
+    }
+
+    .markdown-content pre {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+
+    .markdown-content pre code {
+        background-color: transparent;
+        padding: 0;
+        color: inherit;
+    }
+
+    .markdown-content ul, .markdown-content ol {
+        margin-bottom: 15px;
+        margin-left: 20px;
+    }
+
+    .markdown-content li {
+        margin-bottom: 8px;
+    }
+</style>
+{% endblock %}

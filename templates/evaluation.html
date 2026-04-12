@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}Evaluation - SimCLR Web App{% endblock %}
+
+{% block content %}
+<div class="container-lg py-5">
+    <div class="section-title text-center mb-5">
+        <h1 class="mb-2">Model Evaluation</h1>
+        <p class="text-muted">Compare performance across different learning approaches</p>
+    </div>
+
+    {% if results %}
+        <!-- Evaluation Results -->
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <div class="card shadow-lg border-0 mb-4">
+                    <div class="card-body p-5">
+                        <h5 class="mb-4">
+                            <i class="bi bi-bar-chart"></i> Performance Metrics
+                        </h5>
+                        <div style="position: relative; height: 400px; margin-bottom: 40px;">
+                            <canvas id="metricsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Results -->
+                <div class="row g-4">
+                    {% if results.supervised and results.supervised.accuracy is not none %}
+                        <div class="col-md-6">
+                            <div class="card shadow border-0 h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-3">
+                                        <i class="bi bi-bar-chart text-success"></i> Supervised Baseline
+                                    </h6>
+                                    <p class="small text-muted">Standard supervised training on labeled CIFAR-10</p>
+                                    <hr>
+                                    <div class="metric-row">
+                                        <span>Accuracy:</span>
+                                        <strong class="text-success">{{ "%.2f" % (results.supervised.accuracy * 100) }}%</strong>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span>Loss:</span>
+                                        <strong>{{ "%.4f" % results.supervised.loss }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    {% if results.linear_eval and results.linear_eval.accuracy is not none %}
+                        <div class="col-md-6">
+                            <div class="card shadow border-0 h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-3">
+                                        <i class="bi bi-gear text-info"></i> Linear Evaluation
+                                    </h6>
+                                    <p class="small text-muted">Frozen SimCLR encoder with linear classifier</p>
+                                    <hr>
+                                    <div class="metric-row">
+                                        <span>Accuracy:</span>
+                                        <strong class="text-info">{{ "%.2f" % (results.linear_eval.accuracy * 100) }}%</strong>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span>Loss:</span>
+                                        <strong>{{ "%.4f" % results.linear_eval.loss }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Comparison Insights -->
+                <div class="card shadow-lg border-0 mt-4">
+                    <div class="card-body p-4">
+                        <h6 class="mb-3">
+                            <i class="bi bi-lightbulb"></i> Key Insights
+                        </h6>
+                        <ul class="small text-muted mb-0">
+                            <li>
+                                <strong>Supervised Baseline:</strong> Directly trained on labels.
+                                Represents the upper bound of supervised learning.
+                            </li>
+                            <li>
+                                <strong>Linear Evaluation:</strong> Tests the quality of self-supervised features
+                                by training only a linear classifier while keeping the encoder frozen.
+                            </li>
+                            <li>
+                                <strong>Feature Quality:</strong> The gap between supervised and linear eval indicates
+                                how well the self-supervised features capture class-relevant information.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Per-Class Results (if available) -->
+                {% if results.per_class %}
+                    <div class="card shadow-lg border-0 mt-4">
+                        <div class="card-body p-4">
+                            <h6 class="mb-4">
+                                <i class="bi bi-table"></i> Per-Class Performance
+                            </h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Class</th>
+                                            <th>Supervised</th>
+                                            <th>Linear Eval</th>
+                                            <th>Difference</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="perClassTable">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <!-- No Results Available -->
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card border-0 bg-light">
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-info-circle" style="font-size: 48px; color: #6c757d;"></i>
+                        <h5 class="mt-3 mb-2">No Evaluation Results</h5>
+                        <p class="text-muted mb-3">
+                            Evaluation results not found. Please run the evaluation script first:
+                        </p>
+                        <code class="bg-white p-3 rounded d-block mb-3">
+                            python evaluate.py
+                        </code>
+                        <p class="small text-muted">
+                            This will compare all trained models and generate detailed evaluation metrics.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="card shadow-lg border-0 mt-4">
+                    <div class="card-body p-4">
+                        <h6 class="mb-3">
+                            <i class="bi bi-terminal"></i> How to Generate Evaluation Results
+                        </h6>
+                        <ol class="small mb-0">
+                            <li>Train the supervised model: <code>python train_supervised.py</code></li>
+                            <li>Pretrain with SimCLR: <code>python train_simclr.py</code></li>
+                            <li>Run linear evaluation: <code>python train_linear.py</code></li>
+                            <li>Evaluate all models: <code>python evaluate.py</code></li>
+                            <li>Results will be saved to: <code>checkpoints/evaluation_results.json</code></li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- What to Expect -->
+                <div class="card shadow-lg border-0 mt-4">
+                    <div class="card-body p-4">
+                        <h6 class="mb-3">
+                            <i class="bi bi-question-circle"></i> What to Expect
+                        </h6>
+                        <p class="small text-muted mb-2">
+                            Once evaluation is complete, you'll see:
+                        </p>
+                        <ul class="small text-muted mb-0">
+                            <li><strong>Supervised Baseline Accuracy:</strong> ~95-97% (trained on full labels)</li>
+                            <li><strong>Linear Eval Accuracy:</strong> ~90-93% (features from self-supervised learning)</li>
+                            <li>Per-class breakdown showing which categories are easier/harder to classify</li>
+                            <li>Performance comparison visualizations</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const results = {{ results | tojson }};
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (results) {
+            // Create metrics chart
+            createMetricsChart();
+
+            // Populate per-class table
+            if (results.per_class) {
+                populatePerClassTable();
+            }
+        }
+    });
+
+    function createMetricsChart() {
+        const canvas = document.getElementById('metricsChart');
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const models = [];
+        const accuracies = [];
+
+        if (results.supervised && results.supervised.accuracy !== null) {
+            models.push('Supervised Baseline');
+            accuracies.push(results.supervised.accuracy * 100);
+        }
+
+        if (results.linear_eval && results.linear_eval.accuracy !== null) {
+            models.push('Linear Evaluation');
+            accuracies.push(results.linear_eval.accuracy * 100);
+        }
+
+        const chart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: models,
+                datasets: [{
+                    label: 'Accuracy (%)',
+                    data: accuracies,
+                    backgroundColor: ['#198754', '#0dcaf0'],
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        font: {
+                            weight: 'bold'
+                        }
+                    }
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'x',
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            suffix: '%'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function populatePerClassTable() {
+        const table = document.getElementById('perClassTable');
+        if (!table) return;
+
+        const classes = [
+            'Airplane', 'Automobile', 'Bird', 'Cat', 'Deer',
+            'Dog', 'Frog', 'Horse', 'Ship', 'Truck'
+        ];
+
+        if (!results.per_class || !results.per_class.supervised || !results.per_class.linear_eval) {
+            return;
+        }
+
+        table.innerHTML = classes.map((className, idx) => {
+            const superAcc = (results.per_class.supervised[idx] * 100).toFixed(1);
+            const linearAcc = (results.per_class.linear_eval[idx] * 100).toFixed(1);
+            const diff = (superAcc - linearAcc).toFixed(1);
+
+            return `
+                <tr>
+                    <td><strong>${className}</strong></td>
+                    <td><span class="badge bg-success">${superAcc}%</span></td>
+                    <td><span class="badge bg-info">${linearAcc}%</span></td>
+                    <td>
+                        <span class="${diff > 0 ? 'text-warning' : 'text-muted'}">
+                            ${diff > 0 ? '+' : ''}${diff}%
+                        </span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+</script>
+
+<style>
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        filter-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .metric-row:last-child {
+        border-bottom: none;
+    }
+
+    .metric-row strong {
+        font-size: 18px;
+    }
+</style>
+{% endblock %}

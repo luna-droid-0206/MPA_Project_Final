@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Home - SimCLR Web App{% endblock %}
+
+{% block content %}
+<div class="container-lg py-5">
+    <!-- Hero Section -->
+    <div class="hero-section text-center mb-5">
+        <div class="hero-content">
+            <h1 class="display-4 fw-bold mb-3">SimCLR Self-Supervised Learning</h1>
+            <p class="lead text-muted mb-4">
+                Explore contrastive learning with state-of-the-art self-supervised representations on CIFAR-10
+            </p>
+            <div class="hero-buttons">
+                <a href="/predict" class="btn btn-primary btn-lg me-2">
+                    <i class="bi bi-image"></i> Try Predictions
+                </a>
+                <a href="/documentation" class="btn btn-outline-primary btn-lg">
+                    <i class="bi bi-book"></i> Learn More
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-primary">
+                    <i class="bi bi-diagram-3"></i>
+                </div>
+                <h5>Dataset</h5>
+                <p>CIFAR-10</p>
+                <span class="badge bg-primary">60K Images</span>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-success">
+                    <i class="bi bi-cpu"></i>
+                </div>
+                <h5>Model</h5>
+                <p>ResNet-18</p>
+                <span class="badge bg-success">512-D Features</span>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-info">
+                    <i class="bi bi-lightning"></i>
+                </div>
+                <h5>Learning</h5>
+                <p>Contrastive</p>
+                <span class="badge bg-info">NT-Xent Loss</span>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-warning">
+                    <i class="bi bi-gpu-card"></i>
+                </div>
+                <h5>Compute</h5>
+                <p>Device: <span id="device-info">Loading...</span></p>
+                <span class="badge bg-warning" id="device-badge">GPU/CPU</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Models -->
+    <div class="section-title">
+        <h2 class="mb-4">Available Models</h2>
+    </div>
+
+    <div class="row g-4 mb-5">
+        {% if models_info %}
+            {% for model_name, model_data in models_info.items() %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="model-card">
+                        <div class="model-header">
+                            <h5 class="mb-2">
+                                {% if 'SimCLR' in model_name %}
+                                    <i class="bi bi-lightbulb text-warning"></i>
+                                {% elif 'Supervised' in model_name %}
+                                    <i class="bi bi-bar-chart text-success"></i>
+                                {% else %}
+                                    <i class="bi bi-gear text-info"></i>
+                                {% endif %}
+                                {{ model_name }}
+                            </h5>
+                            <span class="badge bg-success">Active</span>
+                        </div>
+                        <p class="small text-muted mb-3">{{ model_data.description }}</p>
+                        <p class="small">
+                            <strong>Type:</strong> {{ model_data.type.title() }}
+                        </p>
+                        {% if 'SimCLR' in model_name %}
+                            <a href="/features" class="btn btn-sm btn-outline-primary w-100">
+                                Extract Features
+                            </a>
+                        {% else %}
+                            <a href="/predict" class="btn btn-sm btn-outline-primary w-100">
+                                Try Classification
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>No models found!</strong> Please train models first using the training scripts.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Key Features -->
+    <div class="section-title">
+        <h2 class="mb-4">Key Features</h2>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-6">
+            <div class="feature-box">
+                <h5 class="mb-3">
+                    <i class="bi bi-image text-primary"></i> Image Classification
+                </h5>
+                <p>Upload any image and get predictions from trained models. Compare results across different learning approaches.</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="feature-box">
+                <h5 class="mb-3">
+                    <i class="bi bi-diagram-3 text-info"></i> Feature Extraction
+                </h5>
+                <p>Extract and visualize learned feature representations from the SimCLR encoder. Understand what the model learns.</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="feature-box">
+                <h5 class="mb-3">
+                    <i class="bi bi-bar-chart text-success"></i> Model Evaluation
+                </h5>
+                <p>Compare performance metrics across supervised, self-supervised, and linear evaluation training approaches.</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="feature-box">
+                <h5 class="mb-3">
+                    <i class="bi bi-book text-warning"></i> Documentation
+                </h5>
+                <p>Comprehensive documentation covering architecture, training procedures, and experimental results.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Info -->
+    <div class="info-section">
+        <h3 class="mb-4">About This Project</h3>
+        <div class="row">
+            <div class="col-lg-8">
+                <p>
+                    This web application showcases <strong>SimCLR (Simple Contrastive Learning of Visual Representations)</strong>,
+                    a state-of-the-art self-supervised learning method. Unlike traditional supervised learning,
+                    SimCLR learns meaningful visual representations without requiring labeled data.
+                </p>
+                <h6 class="mt-4 mb-2">What is Self-Supervised Learning?</h6>
+                <p>
+                    Self-supervised learning trains models to learn from the data itself, without explicit labels.
+                    In SimCLR, we use data augmentation to create different "views" of the same image and train
+                    the model to recognize these as the same instance while distinguishing from other instances.
+                </p>
+                <h6 class="mt-3 mb-2">Why Is It Useful?</h6>
+                <ul>
+                    <li>Reduces dependency on labeled data</li>
+                    <li>Learns robust, transferable representations</li>
+                    <li>Competitive performance with supervised learning</li>
+                    <li>Enables efficient learning with limited labels</li>
+                </ul>
+            </div>
+            <div class="col-lg-4">
+                <div class="info-highlight">
+                    <h6>Project Statistics</h6>
+                    <hr>
+                    <p>
+                        <strong>Dataset:</strong> CIFAR-10<br>
+                        <strong>Classes:</strong> 10<br>
+                        <strong>Images:</strong> 60,000 (50K train, 10K test)<br>
+                        <strong>Resolution:</strong> 32×32 pixels<br>
+                        <strong>Model:</strong> ResNet-18<br>
+                        <strong>Feature Dim:</strong> 512<br>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Update device info on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/health')
+            .then(response => response.json())
+            .then(data => {
+                const device = data.device;
+                document.getElementById('device-info').textContent = device;
+                const badge = document.getElementById('device-badge');
+                if (device.includes('cuda')) {
+                    badge.textContent = 'GPU Enabled';
+                    badge.className = 'badge bg-success';
+                } else {
+                    badge.textContent = 'CPU Mode';
+                    badge.className = 'badge bg-warning';
+                }
+            })
+            .catch(error => console.error('Error fetching health data:', error));
+    });
+</script>
+{% endblock %}

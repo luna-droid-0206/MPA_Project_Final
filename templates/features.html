@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}Features - SimCLR Web App{% endblock %}
+
+{% block content %}
+<div class="container-lg py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="section-title text-center mb-5">
+                <h1 class="mb-2">Feature Extraction</h1>
+                <p class="text-muted">Extract and analyze learned representations from the SimCLR encoder</p>
+            </div>
+
+            <div class="card shadow-lg border-0 mb-4">
+                <div class="card-body p-5">
+                    <!-- Info Box -->
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>About Feature Extraction:</strong> The SimCLR encoder learns 512-dimensional feature vectors
+                        that capture visual semantics without explicit labels. These features can be used for downstream tasks.
+                    </div>
+
+                    <!-- Upload Form -->
+                    <div class="upload-area mb-4" id="uploadArea">
+                        <div class="upload-icon mb-3">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                        </div>
+                        <h5 class="mb-2">Drop image here or click to upload</h5>
+                        <p class="text-muted small mb-3">Supported formats: JPG, PNG, BMP, GIF (Max 50MB)</p>
+                        <input type="file" id="imageInput" accept="image/*" hidden>
+                        <button class="btn btn-primary" onclick="document.getElementById('imageInput').click()">
+                            <i class="bi bi-folder-open"></i> Choose Image
+                        </button>
+                    </div>
+
+                    <!-- Extract Button -->
+                    <button class="btn btn-info btn-lg w-100 mb-3" id="extractBtn" disabled>
+                        <i class="bi bi-lightning"></i> Extract Features
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="text-center mb-4" style="display: none;">
+                <div class="spinner-border text-info mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Extracting features from image...</p>
+            </div>
+
+            <!-- Error Alert -->
+            <div id="errorAlert" class="alert alert-danger alert-dismissible fade show mb-4" role="alert" style="display: none;">
+                <i class="bi bi-exclamation-circle"></i>
+                <span id="errorMessage"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Results -->
+            <div id="resultsContainer" style="display: none;">
+                <!-- Feature Statistics -->
+                <div class="card shadow-lg border-0 mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-4">
+                            <i class="bi bi-graph-up"></i> Feature Statistics
+                        </h5>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stat-box">
+                                    <h6 class="text-muted mb-2">Dimension</h6>
+                                    <h4 id="featureDim">512</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-box">
+                                    <h6 class="text-muted mb-2">Mean</h6>
+                                    <h4 id="featureMean">0.000</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-box">
+                                    <h6 class="text-muted mb-2">Std Dev</h6>
+                                    <h4 id="featureStd">1.000</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-box">
+                                    <h6 class="text-muted mb-2">Range</h6>
+                                    <h6 id="featureRange" class="font-monospace">[0.000, 0.000]</h6>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature Visualization -->
+                <div class="card shadow-lg border-0 mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-4">
+                            <i class="bi bi-bar-chart"></i> Feature Distribution
+                        </h5>
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="featureHistogram"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Features -->
+                <div class="card shadow-lg border-0 mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="mb-4">
+                            <i class="bi bi-pin-angle"></i> Top 10 Feature Magnitudes
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr class="table-light">
+                                        <th>Index</th>
+                                        <th>Value</th>
+                                        <th>Magnitude</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topFeaturesTable">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature Description -->
+                <div class="card shadow-lg border-0">
+                    <div class="card-body p-4">
+                        <h6 class="mb-3">Understanding Features</h6>
+                        <p class="small text-muted">
+                            The SimCLR encoder produces 512-dimensional feature vectors that represent the visual content
+                            of images in a learned latent space. These features:
+                        </p>
+                        <ul class="small text-muted">
+                            <li>Are learned through contrastive learning without labels</li>
+                            <li>Encode semantic similarities between images</li>
+                            <li>Can be used for downstream classification with minimal labels (linear evaluation)</li>
+                            <li>Provide insights into learned visual representations</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedFile = null;
+    let featureHistogramChart = null;
+
+    // Setup drag and drop
+    const uploadArea = document.getElementById('uploadArea');
+    const imageInput = document.getElementById('imageInput');
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            imageInput.files = files;
+            handleFileSelect();
+        }
+    });
+
+    imageInput.addEventListener('change', handleFileSelect);
+
+    function handleFileSelect() {
+        if (imageInput.files.length > 0) {
+            selectedFile = imageInput.files[0];
+            uploadArea.innerHTML = `
+                <div class="alert alert-success mb-0">
+                    <i class="bi bi-check-circle"></i> 
+                    File selected: <strong>${selectedFile.name}</strong>
+                </div>
+            `;
+            document.getElementById('extractBtn').disabled = false;
+        }
+    }
+
+    // Extract button
+    document.getElementById('extractBtn').addEventListener('click', async () => {
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        // Show loading
+        document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('errorAlert').style.display = 'none';
+        document.getElementById('resultsContainer').style.display = 'none';
+
+        try {
+            const response = await fetch('/features', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Feature extraction failed');
+            }
+
+            const data = await response.json();
+            displayResults(data);
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+    });
+
+    function displayResults(data) {
+        const features = data.features;
+
+        // Update statistics
+        document.getElementById('featureDim').textContent = data.feature_dim;
+        document.getElementById('featureMean').textContent = data.features_mean.toFixed(4);
+        document.getElementById('featureStd').textContent = data.features_std.toFixed(4);
+        document.getElementById('featureRange').textContent = 
+            `[${data.features_min.toFixed(4)}, ${data.features_max.toFixed(4)}]`;
+
+        // Update histogram
+        updateHistogram(features);
+
+        // Update top features table
+        updateTopFeaturesTable(features);
+
+        // Show results
+        document.getElementById('resultsContainer').style.display = 'block';
+
+        // Scroll to results
+        setTimeout(() => {
+            document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    }
+
+    function updateHistogram(features) {
+        const ctx = document.getElementById('featureHistogram').getContext('2d');
+
+        // Create bins for histogram
+        const bins = 30;
+        const min = Math.min(...features);
+        const max = Math.max(...features);
+        const binWidth = (max - min) / bins;
+        const binCounts = new Array(bins).fill(0);
+
+        features.forEach(value => {
+            const binIndex = Math.min(Math.floor((value - min) / binWidth), bins - 1);
+            binCounts[binIndex]++;
+        });
+
+        const binLabels = [];
+        for (let i = 0; i < bins; i++) {
+            binLabels.push((min + i * binWidth).toFixed(2));
+        }
+
+        if (featureHistogramChart) {
+            featureHistogramChart.destroy();
+        }
+
+        featureHistogramChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: binLabels,
+                datasets: [{
+                    label: 'Feature Count',
+                    data: binCounts,
+                    backgroundColor: '#0d6efd',
+                    borderRadius: 2,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateTopFeaturesTable(features) {
+        // Get top 10 by absolute value
+        const indexed = features
+            .map((val, idx) => ({ value: val, index: idx }))
+            .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+            .slice(0, 10);
+
+        const tbody = document.getElementById('topFeaturesTable');
+        tbody.innerHTML = indexed.map((item, rank) => `
+            <tr>
+                <td class="font-monospace">${item.index}</td>
+                <td class="font-monospace">${item.value.toFixed(6)}</td>
+                <td>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar bg-info" style="width: ${Math.abs(item.value) * 100}%"></div>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function showError(message) {
+        document.getElementById('errorMessage').textContent = message;
+        document.getElementById('errorAlert').style.display = 'block';
+    }
+</script>
+
+<style>
+    .upload-area {
+        border: 3px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .upload-area:hover {
+        border-color #17a2b8;
+        background-color: rgba(23, 162, 184, 0.05);
+    }
+
+    .upload-area.dragover {
+        border-color: #17a2b8;
+        background-color: rgba(23, 162, 184, 0.1);
+    }
+
+    .upload-icon {
+        font-size: 48px;
+        color: #17a2b8;
+    }
+
+    .stat-box {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        border-left: 4px solid #17a2b8;
+    }
+
+    .stat-box h4 {
+        color: #17a2b8;
+        margin: 10px 0 0 0;
+    }
+</style>
+{% endblock %}
