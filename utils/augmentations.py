@@ -16,8 +16,9 @@ import torchvision.transforms as transforms
 from torchvision.transforms import functional as TF
 import numpy as np
 from config import (
-    CIFAR10_MEAN,
-    CIFAR10_STD,
+    TINY_IMAGENET_MEAN,
+    TINY_IMAGENET_STD,
+    IMAGE_SIZE,
     CROP_SCALE,
     COLOR_JITTER_PARAMS,
     GRAYSCALE_PROB,
@@ -37,10 +38,11 @@ def get_default_transform():
         transforms.Compose: Default transform pipeline
     """
     transform = transforms.Compose([
+        transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
         transforms.ToTensor(),
         transforms.Normalize(
-            mean=CIFAR10_MEAN,
-            std=CIFAR10_STD
+            mean=TINY_IMAGENET_MEAN,
+            std=TINY_IMAGENET_STD
         )
     ])
     return transform
@@ -50,8 +52,8 @@ def get_simclr_augmentations():
     """
     Returns the standard SimCLR augmentation pipeline.
 
-    For CIFAR-10 (32x32), we need to be careful with RandomResizedCrop
-    since the image is already small. We'll crop to 32x32 as well.
+    For Tiny ImageNet (64x64), uses aggressive augmentations for self-supervised learning.
+    Augmentation parameters from SimCLR paper.
 
     Returns:
         transforms.Compose: Composed augmentation pipeline
@@ -66,7 +68,7 @@ def get_simclr_augmentations():
 
     transform = transforms.Compose([
         transforms.RandomResizedCrop(
-            size=32,
+            size=IMAGE_SIZE,
             scale=CROP_SCALE
         ),
         transforms.RandomHorizontalFlip(p=0.5),
@@ -83,8 +85,8 @@ def get_simclr_augmentations():
         ),
         transforms.ToTensor(),
         transforms.Normalize(
-            mean=CIFAR10_MEAN,
-            std=CIFAR10_STD
+            mean=TINY_IMAGENET_MEAN,
+            std=TINY_IMAGENET_STD
         )
     ])
 
@@ -137,8 +139,8 @@ def test_simclr_transform():
 
     transform = SimCLRTransform()
 
-    # Create dummy image (CIFAR-10 size)
-    dummy_img = Image.fromarray((np.random.rand(32, 32, 3) * 255).astype(np.uint8))
+    # Create dummy image (Tiny ImageNet size)
+    dummy_img = Image.fromarray((np.random.rand(IMAGE_SIZE, IMAGE_SIZE, 3) * 255).astype(np.uint8))
 
     view1, view2 = transform(dummy_img)
 
@@ -147,8 +149,8 @@ def test_simclr_transform():
     print(f"View 2 shape: {view2.shape}")
 
     # Check that views are different (due to random augmentations)
-    assert view1.shape == (3, 32, 32), f"Expected (3, 32, 32), got {view1.shape}"
-    assert view2.shape == (3, 32, 32), f"Expected (3, 32, 32), got {view2.shape}"
+    assert view1.shape == (3, IMAGE_SIZE, IMAGE_SIZE), f"Expected (3, {IMAGE_SIZE}, {IMAGE_SIZE}), got {view1.shape}"
+    assert view2.shape == (3, IMAGE_SIZE, IMAGE_SIZE), f"Expected (3, {IMAGE_SIZE}, {IMAGE_SIZE}), got {view2.shape}"
     assert not torch.allclose(view1, view2), "Views should be different due to random augmentation"
 
     print("[OK] SimCLR transform test passed!")

@@ -19,6 +19,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.cuda.amp import autocast, GradScaler
+from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent))
@@ -26,7 +28,9 @@ sys.path.append(str(Path(__file__).parent))
 from config import (
     DEVICE, BATCH_SIZE, LINEAR_LR, EPOCHS_LINEAR,
     WEIGHT_DECAY, OPTIMIZER, SAVE_FREQUENCY, CHECKPOINT_DIR,
-    LINEAR_EVAL_CHECKPOINT, PRETRAINED_CHECKPOINT, RANDOM_SEED, NUM_CLASSES
+    LINEAR_EVAL_CHECKPOINT, PRETRAINED_CHECKPOINT, RANDOM_SEED, NUM_CLASSES,
+    USE_MIXED_PRECISION, USE_LR_SCHEDULER, SCHEDULER_TYPE,
+    COSINE_T_MAX, COSINE_ETA_MIN
 )
 from models.encoder import Encoder
 from data.dataset import get_supervised_dataloaders
@@ -189,6 +193,25 @@ def train_linear(
 
     criterion = nn.CrossEntropyLoss()
 
+    # Initialize learning rate scheduler
+    scheduler = None
+    if USE_LR_SCHEDULER:
+        if SCHEDULER_TYPE.lower() == 'cosine':
+            scheduler = CosineAnnealingLR(
+                optimizer,
+                T_max=EPOCHS_LINEAR,
+                eta_min=COSINE_ETA_MIN
+            )
+            print(f"Using Cosine Annealing LR scheduler (T_max={EPOCHS_LINEAR}, eta_min={COSINE_ETA_MIN})")
+        elif SCHEDULER_TYPE.lower() == 'step':
+            scheduler = StepLR(optimizer, step_size=20, gamma=0.1)
+            print(f"Using Step LR scheduler")
+
+    # Initialize mixed precision training
+    scaler = GradScaler() if USE_MIXED_PRECISION else None
+    if USE_MIXED_PRECISION:
+        print(f"Mixed precision training enabled")
+
     # Resume from checkpoint if requested
     start_epoch = 0
     best_acc = 0.0
@@ -197,6 +220,8 @@ def train_linear(
         checkpoint = torch.load(checkpoint_path, map_location=DEVICE, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if scheduler is not None and 'scheduler_state_dict' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         best_acc = checkpoint.get('best_acc', 0.0)
         print(f"Resumed from epoch {checkpoint['epoch']}, best test acc: {best_acc:.2f}%")
@@ -215,14 +240,25 @@ def train_linear(
             images = images.to(DEVICE)
             labels = labels.to(DEVICE)
 
-            # Forward
-            logits = model(images)
-            loss = criterion(logits, labels)
-
-            # Backward
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # Forward with mixed precision
+            if USE_MIXED_PRECISION:
+                with autocast():
+                    logits = model(images)
+                    loss = criterion(logits, labels)
+                
+                # Backward pass with scaled loss
+                optimizer.zero_grad()
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                # Standard forward and backward
+                logits = model(images)
+                loss = criterion(logits, labels)
+                
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
             # Metrics
             train_loss += loss.item()
@@ -236,13 +272,21 @@ def train_linear(
         # Evaluate on test set
         test_acc = evaluate(model, test_loader)
 
-        print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f}, Train Acc: {train_acc:.2f}%, Test Acc: {test_acc:.2f}%")
+        # Update learning rate scheduler
+        if scheduler is not None:
+            scheduler.step()
+            current_lr = scheduler.get_last_lr()[0]
+            print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f}, Train Acc: {train_acc:.2f}%, Test Acc: {test_acc:.2f}%, LR: {current_lr:.6f}")
+        else:
+            print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f}, Train Acc: {train_acc:.2f}%, Test Acc: {test_acc:.2f}%")
 
         # Save checkpoint
         if (epoch + 1) % save_freq == 0:
             checkpoint = {
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict() if scheduler is not None else None,
                 'optimizer_state_dict': optimizer.state_dict(),
                 'train_loss': avg_train_loss,
                 'train_acc': train_acc,

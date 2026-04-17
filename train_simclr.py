@@ -14,6 +14,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.cuda.amp import autocast, GradScaler
+from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 
 # Optional TensorBoard support
 try:
@@ -29,7 +31,9 @@ sys.path.append(str(Path(__file__).parent))
 from config import (
     DEVICE, BATCH_SIZE, LEARNING_RATE, EPOCHS_PRETRAIN, TEMPERATURE,
     WEIGHT_DECAY, OPTIMIZER, SGD_MOMENTUM, SAVE_FREQUENCY,
-    CHECKPOINT_DIR, PRETRAINED_CHECKPOINT, RANDOM_SEED
+    CHECKPOINT_DIR, PRETRAINED_CHECKPOINT, RANDOM_SEED,
+    USE_MIXED_PRECISION, USE_LR_SCHEDULER, SCHEDULER_TYPE,
+    COSINE_T_MAX, COSINE_ETA_MIN
 )
 from models.encoder import Encoder
 from models.projection_head import ProjectionHead
@@ -126,6 +130,25 @@ def pretrain_simclr(
     # Initialize loss
     criterion = NTXentLoss(temperature=temperature).to(DEVICE)
 
+    # Initialize learning rate scheduler
+    scheduler = None
+    if USE_LR_SCHEDULER:
+        if SCHEDULER_TYPE.lower() == 'cosine':
+            scheduler = CosineAnnealingLR(
+                optimizer,
+                T_max=COSINE_T_MAX,
+                eta_min=COSINE_ETA_MIN
+            )
+            print(f"Using Cosine Annealing LR scheduler (T_max={COSINE_T_MAX}, eta_min={COSINE_ETA_MIN})")
+        elif SCHEDULER_TYPE.lower() == 'step':
+            scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
+            print(f"Using Step LR scheduler")
+
+    # Initialize mixed precision training
+    scaler = GradScaler() if USE_MIXED_PRECISION else None
+    if USE_MIXED_PRECISION:
+        print(f"Mixed precision training enabled")
+    
     # Optional: TensorBoard
     if TENSORBOARD_AVAILABLE:
         writer = SummaryWriter(log_dir=f"{CHECKPOINT_DIR}/runs/simclr_pretrain")
@@ -140,6 +163,8 @@ def pretrain_simclr(
         encoder.load_state_dict(checkpoint['encoder_state_dict'])
         projection_head.load_state_dict(checkpoint['projection_head_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if scheduler is not None and 'scheduler_state_dict' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
         print(f"Resumed from epoch {checkpoint['epoch']}")
 
@@ -157,17 +182,27 @@ def pretrain_simclr(
             view1 = view1.to(DEVICE)
             view2 = view2.to(DEVICE)
 
-            # Forward pass: encoder -> projection head for both views
-            z1 = projection_head(encoder(view1))
-            z2 = projection_head(encoder(view2))
-
-            # Compute contrastive loss
-            loss = criterion(z1, z2)
-
-            # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # Forward pass with mixed precision
+            if USE_MIXED_PRECISION:
+                with autocast():
+                    z1 = projection_head(encoder(view1))
+                    z2 = projection_head(encoder(view2))
+                    loss = criterion(z1, z2)
+                
+                # Backward pass with scaled loss
+                optimizer.zero_grad()
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                # Standard backward pass
+                z1 = projection_head(encoder(view1))
+                z2 = projection_head(encoder(view2))
+                loss = criterion(z1, z2)
+                
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
             epoch_loss += loss.item()
             num_batches += 1
@@ -177,11 +212,20 @@ def pretrain_simclr(
                 print(f"Epoch {epoch+1}/{epochs}, Batch {batch_idx+1}/{len(train_loader)}, Loss: {loss.item():.4f}")
 
         avg_loss = epoch_loss / num_batches
-        print(f"Epoch {epoch+1}/{epochs} - Average Loss: {avg_loss:.4f}")
+        
+        # Update learning rate scheduler
+        if scheduler is not None:
+            scheduler.step()
+            current_lr = scheduler.get_last_lr()[0]
+            print(f"Epoch {epoch+1}/{epochs} - Average Loss: {avg_loss:.4f}, LR: {current_lr:.6f}")
+        else:
+            print(f"Epoch {epoch+1}/{epochs} - Average Loss: {avg_loss:.4f}")
 
         # Log to TensorBoard
         if writer is not None:
             writer.add_scalar('Loss/train', avg_loss, epoch)
+            if scheduler is not None:
+                writer.add_scalar('LR/train', scheduler.get_last_lr()[0], epoch)
 
         # Save checkpoint
         if (epoch + 1) % save_freq == 0:
@@ -190,6 +234,7 @@ def pretrain_simclr(
                 'encoder_state_dict': encoder.state_dict(),
                 'projection_head_state_dict': projection_head.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict() if scheduler is not None else None,
                 'loss': avg_loss,
                 'config': {
                     'batch_size': batch_size,
@@ -211,6 +256,7 @@ def pretrain_simclr(
         'encoder_state_dict': encoder.state_dict(),
         'projection_head_state_dict': projection_head.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict() if scheduler is not None else None,
         'loss': avg_loss,
         'config': {
             'batch_size': batch_size,
