@@ -221,11 +221,13 @@ class SimCLRDataset(Dataset):
         img, label = self.base_dataset[idx]
 
         if self.transform is not None:
-            # Transform should return (view1, view2) tuple
-            if isinstance(img, tuple):
-                view1, view2 = img
+            # Transform returns either (view1, view2) or a single image
+            result = self.transform(img)
+            if isinstance(result, tuple):
+                view1, view2 = result
             else:
-                view1 = self.transform(img)
+                # If transform returns a single image, apply it twice
+                view1 = result
                 view2 = self.transform(img)
         else:
             view1 = img
